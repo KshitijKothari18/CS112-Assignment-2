@@ -1,0 +1,432 @@
+# Question 1
+
+set.seed(1234)
+X <- rnorm(998,30,5)
+Y <- -1.5*X + 5 + rnorm(998
+data <- data.frame(X,Y)
+
+model1 <- lm(data$Y ~ data$X)
+summary(model1)
+
+data2 <- rbind(data, c(-700,-100))
+data3 <- rbind(data2, c(-300,-100))
+model2 <- lm(data3$Y ~ data3$X)
+summary(model2)
+
+plot(data2)
+line1 <- abline(model1, col ='green', data)
+line2 <- abline(model2, col ='blue', data2)
+legend(x = -700, y = -10, legend=c('Regression line without outlier','Regression line with outlier'), fill = c('green','blue'))
+
+# Question 2
+
+# A
+
+library(Matching)
+library('arm')
+data(lalonde)
+
+lalonde$age_squared <- lalonde$age^2
+
+# only TREATED units
+lalonde.treat <- lalonde[which(lalonde$treat == 1), ]
+max(lalonde.treat$age)
+
+# Fit the regression model
+lm.lalonde <- lm(re78 ~ age + age_squared + educ + treat + treat * age + re74 + re75, data = lalonde)
+summary(lm.lalonde)
+
+# Simulate
+set.seed(123)
+iterations <- 10000
+sim.lalonde <- sim(lm.lalonde, n.sims = iterations)
+
+# Checking coefficients to make sure the order of analysis is right
+sim.lalonde@coef[1,]
+
+# Predict re78 for every unit of age for every set of coefficients holding at the medians
+simulated.ys_mean <- matrix(NA, nrow = iterations, ncol = length(
+  min(lalonde$age):max(lalonde$age)))
+
+# Finding means for given quantities
+mean_educ <- mean(lalonde.treat$educ)
+mean_re74 <- mean(lalonde.treat$re74)
+mean_re75 <- mean(lalonde.treat$re75)
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  Xs <- c(1, age, age^2, mean_educ, 1, mean_re74, mean_re75, 1 * age)
+  for (i in 1:iterations) {
+    simulated.ys_mean[i, age + 1 - min(lalonde$age)] <- sum(Xs*sim.lalonde@coef[i,])
+  }
+}
+
+conf.intervals_mean_t <- apply(simulated.ys_mean, 2, quantile, probs = c(0.025, 0.975))
+table_mean_treat_t <- t(data.frame(conf.intervals_mean_t))
+colnames(table_mean_treat_t) <- c("Mean PI Lower Bound", "Mean PI Upper Bound")
+table_mean_treat_t <- data.frame(table_mean_treat_t, mean_educ, mean_re74, mean_re75)
+rownames(table_mean_treat_t) <- min(lalonde$age):max(lalonde$age)
+View(table_mean_treat_t)
+
+plot(x = c(1:100), y = c(1:100), type = "n", 
+     xlim = c(min(lalonde$age),max(lalonde$age)), 
+     ylim = c(0,17000), 
+     main = "Re78 (Earnings) by Age With Predictors Held at The Means from Treatment Group", xlab = "Age", 
+     ylab = "Re78")
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_mean_t[1, age - min(lalonde$age) + 1],
+    x1 = age,
+    y1 = conf.intervals_mean_t[2, age - min(lalonde$age) + 1],
+    lwd = 2)
+}
+
+# B
+
+library(Matching)
+library('arm')
+data(lalonde)
+
+lalonde$age_squared <- lalonde$age^2
+
+# only TREATED units
+lalonde.control <- lalonde[which(lalonde$treat == 0), ]
+
+# Fit the regression model
+lm.lalonde <- lm(re78 ~ age + age_squared + educ + treat + treat * age + re74 + re75, data = lalonde)
+summary(lm.lalonde)
+
+# Simulate
+set.seed(123)
+iterations <- 10000
+sim.lalonde_c <- sim(lm.lalonde, n.sims = iterations)
+
+# Checking coefficients to make sure the order of analysis is right
+sim.lalonde_c@coef[1,]
+
+# Predict re78 for every unit of age for every set of coefficients holding at the medians
+simulated.ys_mean_c <- matrix(NA, nrow = iterations, ncol = length(
+  min(lalonde$age):max(lalonde$age)))
+
+# Finding means for given quantities
+mean_educ <- mean(lalonde.control$educ)
+mean_re74 <- mean(lalonde.control$re74)
+mean_re75 <- mean(lalonde.control$re75)
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  Xs <- c(1, age, age^2, mean_educ, 0, mean_re74, mean_re75, 0 * age)
+  for (i in 1:iterations) {
+    simulated.ys_mean_c[i, age + 1 - min(lalonde$age)] <- sum(Xs*sim.lalonde_c@coef[i,])
+  }
+}
+
+conf.intervals_mean_c <- apply(simulated.ys_mean_c, 2, quantile, probs = c(0.025, 0.975))
+table_mean_treat_c <- t(data.frame(conf.intervals_mean_c))
+colnames(table_mean_treat_c) <- c("Mean PI Lower Bound", "Mean PI Upper Bound")
+table_mean_treat_c <- data.frame(table_mean_treat_c, mean_educ, mean_re74, mean_re75)
+rownames(table_mean_treat_c) <- min(lalonde$age):max(lalonde$age)
+View(table_mean_treat_c)
+
+
+plot(x = c(1:100), y = c(1:100), type = "n", 
+     xlim = c(min(lalonde$age),max(lalonde$age)), 
+     ylim = c(-4000,12000), 
+     main = "Re78 by Age With Predictors Held at The Means (Control Unit)", xlab = "Age", 
+     ylab = "Re78")
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_mean_c[1, age - min(lalonde$age) + 1],
+    x1 = age,
+    y1 = conf.intervals_mean_c[2, age - min(lalonde$age) + 1],
+    lwd = 2)
+}
+
+# C
+
+library(Matching)
+library('arm')
+data(lalonde)
+
+lalonde$age_squared <- lalonde$age^2
+
+# both treated and control
+lalonde.control <- lalonde[which(lalonde$treat == 0), ]
+lalonde.treat <- lalonde[which(lalonde$treat == 1), ]
+
+# Fit the regression model
+lm.lalonde <- lm(re78 ~ age + age_squared + educ + treat + treat * age + re74 + re75, data = lalonde)
+summary(lm.lalonde)
+
+# Simulate
+set.seed(123)
+iterations <- 10000
+sim.lalonde <- sim(lm.lalonde, n.sims = iterations)
+
+sim.lalonde@coef[1,]
+
+# Predict re78 for every unit of age for every set of coefficients holding at the medians
+treat.effect <- matrix(NA, nrow = iterations, ncol = length(
+  min(lalonde$age):max(lalonde$age)))
+
+mean.educ_control <- mean(lalonde.control$educ)
+mean.re74_control <- mean(lalonde.control$re74)
+mean.re75_control <- mean(lalonde.control$re75)
+
+mean.educ_treated <- mean(lalonde.treat$educ)
+mean.re74_treated <- mean(lalonde.treat$re74)
+mean.re75_treated <- mean(lalonde.treat$re75)
+
+for (a in min(lalonde$age):max(lalonde$age)){
+  X.treat <- c(1, a, a^2, mean.educ_treated, 1, mean.re74_treated, mean.re75_treated, 1*a)
+  X.control <- c(1, a, a^2, mean.educ_control, 0, mean.re74_control, mean.re75_control, 0*a)
+  for(i in 1:iterations) {
+    treat.effect[i, a + 1 - min(lalonde$age)] <- sum(X.treat*sim.lalonde@coef[i, ]) - 
+      sum(X.control*sim.lalonde@coef[i, ])
+  }
+}
+
+conf.intervals_mean_te <- apply(treat.effect, 2, quantile, probs = c(0.025, 0.975))
+table_mean_treat_te <- t(data.frame(conf.intervals_mean_te))
+colnames(table_mean_treat_te) <- c("Mean PI Lower Bound", "Mean PI Upper Bound")
+table_mean_treat_te <- data.frame(table_mean_treat_te, mean.educ_treated - mean.educ_control, 
+                               mean.re74_treated - mean.re74_control, 
+                               mean.re75_treated - mean.re75_control)
+rownames(table_mean_treat_te) <- min(lalonde$age):max(lalonde$age)
+View(table_mean_treat_te)
+
+
+plot(x = c(1:100), y = c(1:100), type = "n", 
+     xlim = c(min(lalonde$age),max(lalonde$age)), 
+     ylim = c(-2000,12000), 
+     main = "Re78 by Age With Predictors Held at The Means (Treatment Effect)", xlab = "Age", 
+     ylab = "Re78")
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_mean_te[1, age - min(lalonde$age) + 1],
+    x1 = age,
+    y1 = conf.intervals_mean_te[2, age - min(lalonde$age) + 1],
+    lwd = 2)
+}
+
+# D
+
+library(Matching)
+library('arm')
+data(lalonde)
+
+lalonde$age_squared <- lalonde$age^2
+
+# both treated and control
+lalonde.control <- lalonde[which(lalonde$treat == 0), ]
+lalonde.treat <- lalonde[which(lalonde$treat == 1), ]
+
+# Fit the regression model
+lm.lalonde <- lm(re78 ~ age + age_squared + educ + treat + treat * age + re74 + re75, data = lalonde)
+summary(lm.lalonde)
+
+# Simulate
+set.seed(123)
+iterations <- 10000
+sim.lalonde <- sim(lm.lalonde, n.sims = iterations)
+
+# Predict re78 for every unit of age for every set of coefficients holding at the medians
+treat.effect <- matrix(NA, nrow = iterations, ncol = length(
+  min(lalonde$age):max(lalonde$age)))
+
+# Medians for control variables
+median.educ_control <- median(lalonde.control$educ)
+median.re74_control <- median(lalonde.control$re74)
+median.re75_control <- median(lalonde.control$re75)
+
+# Medians for treated variables
+median.educ_treated <- median(lalonde.treat$educ)
+median.re74_treated <- median(lalonde.treat$re74)
+median.re75_treated <- median(lalonde.treat$re75)
+
+for (a in min(lalonde$age):max(lalonde$age)) {
+  X.treat <- c(1, a, a^2, median.educ_treated, 1, median.re74_treated, median.re75_treated, 1*a)
+  X.control <- c(1, a, a^2, median.educ_control, 0, median.re74_control, median.re75_control, 0*a)
+  for(i in 1:iterations) {
+    treat.effect[i, a + 1 - min(lalonde$age)] <- (sum(X.treat*sim.lalonde@coef[i, ]) + rnorm(1, 0, sim.lalonde@sigma[i])) - 
+      (sum(X.control*sim.lalonde@coef[i, ]) + rnorm(1, 0, sim.lalonde@sigma[i])) 
+  }
+}
+
+# Confidence intervals and tables
+conf.intervals_median_te <- apply(treat.effect, 2, quantile, probs = c(0.025, 0.975))
+table_median_treat_te <- t(data.frame(conf.intervals_median_te))
+colnames(table_median_treat_te) <- c("Median PI Lower Bound", "Median PI Upper Bound")
+table_median_treat_te <- data.frame(table_median_treat_te, median.educ_treated - median.educ_control, 
+                                  median.re74_treated - median.re74_control, 
+                                  median.re75_treated - median.re75_control)
+rownames(table_median_treat_te) <- min(lalonde$age):max(lalonde$age)
+table_median_treat_te
+View(table_median_treat_te)
+
+
+plot(x = c(1:100), y = c(1:100), type = "n", 
+     xlim = c(min(lalonde$age),max(lalonde$age)), 
+     ylim = c(-20000, 30000), 
+     main = "Re78 by Age With Predictors Held at The Medians", xlab = "Age", 
+     ylab = "Re78")
+
+for (age in min(lalonde$age):max(lalonde$age)) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_median_te[1, age - min(lalonde$age) + 1],
+    x1 = age,
+    y1 = conf.intervals_median_te[2, age - min(lalonde$age) + 1],
+    lwd = 2)
+}
+
+# Question 3
+
+afterschool <- read.csv(url("https://tinyurl.com/y2prc9xq"))
+head(afterschool)
+
+# Regression model
+lm.afterschool <- lm(MATH_SCORE ~ TREATMENT, data = afterschool)
+summary(lm.afterschool)
+summary(lm.afterschool)$coef[2]
+
+# Declare bootstrapping function
+iterations <- 10000
+storage <- rep(NA, iterations)
+for (i in 1:iterations) {
+  temp_lm = lm(MATH_SCORE ~ TREATMENT, data = afterschool[sample(1:nrow(afterschool), nrow(afterschool), replace = T),])
+  storage[i] <- temp_lm$coefficients[2]
+}
+
+# plot the histogram and relevant statistics
+hist(storage, lwd = 2,
+     main = "The histogram of the observed effect",
+     ylim = c(0, 1700),
+     xlab = "Weight",
+     ylab = "Frequency")
+abline(v = mean(storage),
+       col = rgb(1,0,0,0.3),
+       lwd = 5)
+abline(v = quantile(storage, 0.025),
+       col = "blue",
+       lwd = 4)
+abline(v = quantile(storage, 0.975),
+       col = "blue",
+       lwd = 4)
+abline(v = summary(lm.afterschool)$coef[2],
+       col = rgb(0,1,0,0.3),
+       lwd = 2)
+
+# Find simulated confidence intervals and compare with regression standard error
+mean(storage)
+quantile(storage, c(0.025, 0.975))
+summary(lm.afterschool)$coef[2]
+confint(lm.afterschool, level = 0.95)
+
+# Question 4
+
+# Boostrap function for calculating r^2
+r_squared <- function(true_y, predicted_y) {
+  iterations <- 200000
+  storage <- rep(NA, iterations)
+  for (i in 1:iterations){
+    indices <- sample(1:length(true_y), length(true_y), replace = T)
+    new_true_y <- true_y[indices]
+    new_pred_y <- predicted_y[indices]
+    rss <- sum((new_true_y - new_pred_y)**2)
+    tss <- sum((new_true_y - mean(new_true_y))**2)
+    storage[i] <- (1 - rss/tss)
+  }
+  return(mean(storage))
+}
+
+# Retrieving and cleaning data
+afterschool <- read.csv(url("https://tinyurl.com/y2prc9xq"))
+afterschool_na.math <- afterschool[!is.na(afterschool$MATH_SCORE), ]
+lm.afterschool <- lm(MATH_SCORE ~ TREATMENT, data = afterschool_na.math)
+
+# R squared by using function
+r_squared(afterschool_na.math$MATH_SCORE, lm.afterschool$fitted.values)
+# R squared by using bootstrap
+summary(lm(MATH_SCORE ~ TREATMENT , data = afterschool))$r.squared
+
+# Question 5
+
+library(boot)
+
+nsw <- read.csv(url("https://tinyurl.com/yx8tqf3k")) 
+set.seed(12345)
+head(nsw)
+
+# Sample for test set
+test_set <- sample(1:length(nsw$age), 2000, replace = FALSE) 
+
+# Test set data
+test_set_data <- nsw[test_set, ]
+
+# Training set data
+training_set_data <- nsw[-test_set, ]
+
+# Checking for accurate length
+length(test_set_data$age)
+length(training_set_data$age)
+length(nsw$age)
+
+# MODEL 1 LOOCV
+glm.fit_1 <- glm(treat ~ age + education + black + hispanic + nodegree + married, data = training_set_data)
+summary(glm.fit_1)
+cv.error_1 = cv.glm(training_set_data, glm.fit_1)
+names(cv.error_1)
+round(cv.error_1$delta, 8)
+
+# MODEL 1 TEST-SET ERROR
+test_MSE_1 <- mean((test_set_data$treat - predict.glm(glm.fit_1, test_set_data))^2)
+test_MSE_1
+
+# MODEL 2 LOOCV
+glm.fit_2 <- glm(treat ~ age + education + black + married, data = training_set_data)
+summary(glm.fit_2)
+cv.error_2 = cv.glm(training_set_data, glm.fit_2)
+names(cv.error_2)
+round(cv.error_2$delta, 8)
+
+# MODEL 2 TEST-SET ERROR
+test_MSE_2 <- mean((test_set_data$treat - predict.glm(glm.fit_2, test_set_data))^2)
+test_MSE_2
+
+# MODEL 3 LOOCV
+glm.fit_3 <- glm(treat ~ age + education, data = training_set_data)
+summary(glm.fit_3)
+cv.error_3 = cv.glm(training_set_data, glm.fit_3)
+names(cv.error_3)
+round(cv.error_3$delta, 8)
+
+# MODEL 3 TEST-SET ERROR
+test_MSE_3 <- mean((test_set_data$treat - predict.glm(glm.fit_3, test_set_data))^2)
+test_MSE_3
+
+# MODEL 4 LOOCV
+glm.fit_4 <- glm(treat ~ age + education + hispanic, data = training_set_data)
+summary(glm.fit_4)
+cv.error_4 = cv.glm(training_set_data, glm.fit_4)
+names(cv.error_4)
+round(cv.error_4$delta, 8)
+
+# MODEL 4 TEST-SET ERROR
+test_MSE_4 <- mean((test_set_data$treat - predict.glm(glm.fit_4, test_set_data))^2)
+test_MSE_4
+
+# MODEL 5 LOOCV
+glm.fit_5 <- glm(treat ~ age + education + hispanic + married, data = training_set_data)
+summary(glm.fit_5)
+cv.error_5 = cv.glm(training_set_data, glm.fit_5)
+names(cv.error_5)
+round(cv.error_5$delta, 8)
+
+# MODEL 5 TEST-SET ERROR
+test_MSE_5 <- mean((test_set_data$treat - predict.glm(glm.fit_5, test_set_data))^2)
+test_MSE_5
